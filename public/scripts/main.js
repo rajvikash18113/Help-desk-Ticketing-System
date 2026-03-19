@@ -267,8 +267,78 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.matches('.role-selector')) { const email = e.target.dataset.email; const newRole = e.target.value; await fetch(`/api/users/${email}/role`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole }) }); await fetchInitialData(); renderAdminPanel(); }
     });
 
+<<<<<<< Updated upstream
     document.addEventListener('input', (e) => {
         if (e.target.matches('#search-input')) renderDashboard();
+=======
+        saveDataToLocalStorage();
+        ticketForm.reset();
+        ticketModal.classList.add('hidden');
+        renderDashboard();
+    }
+
+    function handleAddComment(e) {
+        e.preventDefault();
+        const text = document.getElementById('comment-text').value;
+        if (!text) return;
+        const ticket = tickets.find(t => t.id === currentTicketId);
+        if (!ticket.comments) ticket.comments = [];
+        ticket.comments.push({ userEmail: currentUser.email, text, timestamp: Date.now() });
+
+        // NOTIFICATION TRIGGER: Notify the ticket owner if an agent/admin comments
+        if (currentUser.role !== 'EndUser' && ticket.userEmail !== currentUser.email) {
+            createNotification(ticket.userEmail, `${currentUser.name} commented on your ticket: "${ticket.subject}"`, ticket.id);
+        }
+
+        saveDataToLocalStorage();
+        renderTicketDetail();
+    }
+
+    function handleStatusUpdate(e) {
+        const ticket = tickets.find(t => t.id === currentTicketId);
+        const newStatus = e.target.value;
+        ticket.status = newStatus;
+
+        // NOTIFICATION TRIGGER: Notify ticket owner on status change
+        if (ticket.userEmail !== currentUser.email) {
+            createNotification(ticket.userEmail, `Status of your ticket "${ticket.subject}" was changed to ${newStatus}`, ticket.id);
+        }
+
+        saveDataToLocalStorage();
+        renderTicketDetail();
+    }
+
+    // --- OTHER RENDER FUNCTIONS & HANDLERS (Unchanged) ---
+    function renderDashboard() { const searchTerm = searchInput.value.toLowerCase(); const status = statusFilter.value; let filteredTickets; if (currentUser.role === 'EndUser') { filteredTickets = tickets.filter(t => t.userEmail === currentUser.email); } else { filteredTickets = tickets; } if (searchTerm) { filteredTickets = filteredTickets.filter(t => t.subject.toLowerCase().includes(searchTerm)); } if (status !== 'all') { filteredTickets = filteredTickets.filter(t => t.status === status); } ticketsList.innerHTML = ''; filteredTickets.forEach(ticket => { const ticketCard = document.createElement('div'); ticketCard.className = 'ticket-card'; ticketCard.dataset.id = ticket.id; ticketCard.innerHTML = `<span class="status ${ticket.status.replace(' ', '-')}">${ticket.status}</span><h3>${ticket.subject}</h3><p class="meta">Category: ${categories.find(c => c.id === ticket.categoryId)?.name || 'N/A'} | Votes: ${ticket.votes || 0}</p>`; ticketCard.addEventListener('click', () => navigateTo('ticket-detail', ticket.id)); ticketsList.appendChild(ticketCard); }); }
+    function renderTicketDetail() { const ticket = tickets.find(t => t.id === currentTicketId); if (!ticket) { navigateTo('dashboard'); return; } const canUpdateStatus = currentUser.role === 'Admin' || currentUser.role === 'SupportAgent'; const commentsHtml = (ticket.comments || []).map(c => `<div class="comment"><p><strong>${users.find(u => u.email === c.userEmail)?.name || 'Unknown'}:</strong> ${c.text}</p><span class="comment-timestamp">${new Date(c.timestamp).toLocaleString()}</span></div>`).join(''); ticketDetailView.innerHTML = `<button id="back-to-dashboard">&larr; Back to Dashboard</button><div class="ticket-detail-header"><h2>${ticket.subject}</h2><p>${ticket.description}</p><div class="ticket-actions"><span class="status ${ticket.status.replace(' ', '-')}">${ticket.status}</span>${canUpdateStatus ? `<select id="status-updater" data-id="${ticket.id}"><option value="Open" ${ticket.status === 'Open' ? 'selected' : ''}>Open</option><option value="In Progress" ${ticket.status === 'In Progress' ? 'selected' : ''}>In Progress</option><option value="Resolved" ${ticket.status === 'Resolved' ? 'selected' : ''}>Resolved</option></select>` : ''}<div class="vote-buttons"><button data-id="${ticket.id}" data-vote="up">👍 uuuu</button><span>${ticket.votes || 0}</span><button data-id="${ticket.id}" data-vote="down">👎 Downvote</button></div></div></div><div class="comments-section"><h3>Comments</h3><div id="comments-list">${commentsHtml}</div><form id="comment-form"><textarea id="comment-text" rows="3" placeholder="Add a comment..."></textarea><button type="submit">Post Comment</button></form></div>`; document.getElementById('back-to-dashboard').addEventListener('click', () => navigateTo('dashboard')); document.getElementById('comment-form').addEventListener('submit', handleAddComment); if (canUpdateStatus) { document.getElementById('status-updater').addEventListener('change', handleStatusUpdate); } ticketDetailView.querySelector('[data-vote="up"]').addEventListener('click', handleVote); ticketDetailView.querySelector('[data-vote="down"]').addEventListener('click', handleVote); }
+    function handleVote(e) { const ticket = tickets.find(t => t.id === currentTicketId); const voteType = e.target.dataset.vote; if (!ticket.votes) ticket.votes = 0; if (voteType === 'up') ticket.votes++; else ticket.votes--; saveDataToLocalStorage(); renderTicketDetail(); }
+    function openTicketModal() { const ticketCategorySelect = document.getElementById('ticket-category'); ticketCategorySelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.name}</option>`).join(''); ticketModal.classList.remove('hidden'); }
+    function renderAdminPanel() { const userManagementList = document.getElementById('user-management-list'); const categoryManagementList = document.getElementById('category-management-list'); const categoryForm = document.getElementById('category-form'); userManagementList.innerHTML = users.map(user => { const isCurrentUser = currentUser.email === user.email; const roleSelector = isCurrentUser ? `<strong>${user.role}</strong>` : `<select class="role-selector" data-email="${user.email}"><option value="EndUser" ${user.role === 'EndUser' ? 'selected' : ''}>End User</option><option value="SupportAgent" ${user.role === 'SupportAgent' ? 'selected' : ''}>Support Agent</option><option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option></select>`; return `<div class="list-item"><span>${user.name} (${user.email})</span><div class="list-item-controls">${roleSelector}${!isCurrentUser ? `<button class="delete-user-btn" data-email="${user.email}">Delete</button>` : ''}</div></div>`; }).join(''); categoryManagementList.innerHTML = categories.map(cat => `<div class="list-item"><span>${cat.name}</span><button class="delete-cat-btn" data-id="${cat.id}">Delete</button></div>`).join(''); document.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', handleDeleteUser)); document.querySelectorAll('.delete-cat-btn').forEach(btn => btn.addEventListener('click', handleDeleteCategory)); document.querySelectorAll('.role-selector').forEach(sel => sel.addEventListener('change', handleRoleChange)); }
+    function handleRoleChange(e) { const email = e.target.dataset.email; const newRole = e.target.value; const userToUpdate = users.find(u => u.email === email); if (userToUpdate) { userToUpdate.role = newRole; saveDataToLocalStorage(); renderAdminPanel(); } }
+    function handleAddCategory(e) { const name = document.getElementById('category-name-input').value; if (!name) return; categories.push({ id: Date.now(), name }); saveDataToLocalStorage(); document.getElementById('category-name-input').value = ''; renderAdminPanel(); }
+    function handleDeleteUser(e) { const email = e.target.dataset.email; users = users.filter(u => u.email !== email); saveDataToLocalStorage(); renderAdminPanel(); }
+    function handleDeleteCategory(e) { const id = parseInt(e.target.dataset.id); categories = categories.filter(c => c.id !== id); saveDataToLocalStorage(); renderAdminPanel(); }
+
+    // --- GLOBAL EVENT LISTENERS ---
+    logoutButton.addEventListener('click', handleLogout);
+    dashboardButton.addEventListener('click', () => navigateTo('dashboard'));
+    adminPanelButton.addEventListener('click', () => navigateTo('admin'));
+    showTicketModalButton.addEventListener('click', openTicketModal);
+    cancelTicketButton.addEventListener('click', () => ticketModal.classList.add('hidden'));
+    ticketForm.addEventListener('submit', handleCreateTicket);
+    document.getElementById('category-form').addEventListener('submit', handleAddCategory);
+    searchInput.addEventListener('input', renderDashboard);
+    statusFilter.addEventListener('change', renderDashboard);
+    notificationBell.addEventListener('click', () => {
+        const isHidden = notificationPanel.classList.contains('hidden');
+        if (isHidden) {
+            renderNotificationPanel();
+            notificationPanel.classList.remove('hidden');
+            markAllNotificationsAsRead();
+        } else {
+            notificationPanel.classList.add('hidden');
+        }
+>>>>>>> Stashed changes
     });
 
     // --- START THE APP ---
